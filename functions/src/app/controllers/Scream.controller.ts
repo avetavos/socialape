@@ -1,7 +1,5 @@
-import { Request, Response, Router } from 'express';
+import { Router } from 'express';
 import { validationResult } from 'express-validator';
-import RequestWithUser from '../interfaces/RequestWithUser.interface';
-import Scream from '../interfaces/Scream.interface';
 import AuthMiddleware from '../middlewares/authentication';
 import ScreamValidator from '../middlewares/validators/Scream.validator';
 import { DB } from '../utils/Admin';
@@ -19,7 +17,7 @@ export default class ScreamController {
 		this.router.get(this.path, this.getAllScreams);
 	}
 
-	private createScream = async (req: RequestWithUser, res: Response) => {
+	private createScream = async (req, res) => {
 		const errors = validationResult(req);
 		if (!errors.isEmpty()) {
 			return res.status(400).json({ errors: errors.array() });
@@ -30,22 +28,20 @@ export default class ScreamController {
 				userHandle: req.user.handle,
 				createdAt: new Date().toISOString()
 			};
-			const doc: FirebaseFirestore.DocumentReference = await DB.collection('screams').add(
-				newScream
-			);
+			const doc = await DB.collection('screams').add(newScream);
 			return res.json({ message: `document ${doc.id} created successfully` });
 		} catch (err) {
 			return res.status(400).json(err);
 		}
 	};
 
-	private getAllScreams = async (req: Request, res: Response) => {
+	private getAllScreams = async (req, res) => {
 		try {
-			const data: FirebaseFirestore.QuerySnapshot = await DB.collection('screams')
+			const data = await DB.collection('screams')
 				.orderBy('createdAt', 'desc')
 				.get();
-			const screams: Scream[] = [];
-			await data.forEach((doc: FirebaseFirestore.QueryDocumentSnapshot) => {
+			const screams = [];
+			await data.forEach(doc => {
 				screams.push({
 					screamId: doc.id,
 					body: doc.data().body,

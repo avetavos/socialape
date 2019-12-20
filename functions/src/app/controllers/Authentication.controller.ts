@@ -1,9 +1,14 @@
-import { Request, Response, Router } from 'express';
+import * as BusBoy from 'busboy';
+import { Router } from 'express';
 import { validationResult } from 'express-validator';
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import AuthMiddleware from '../middlewares/authentication';
 import LoginValidator from '../middlewares/validators/Login.validator';
 import SignUpValidator from '../middlewares/validators/SignUp.validator';
 import { Admin, DB } from '../utils/Admin';
-import { Firebase } from '../utils/Firebase';
+import { Firebase, configs } from '../utils/Firebase';
 
 export default class AuthenticationController {
 	public router: Router = Router();
@@ -16,9 +21,10 @@ export default class AuthenticationController {
 	private initializeRoutes() {
 		this.router.post(`${this.path}/signup`, SignUpValidator, this.signUp);
 		this.router.post(`${this.path}/login`, LoginValidator, this.login);
+		this.router.post(`${this.path}/user/image`, AuthMiddleware, this.uploadImage);
 	}
 
-	private signUp = async (req: Request, res: Response) => {
+	private signUp = async (req, res) => {
 		const errors = validationResult(req);
 		if (!errors.isEmpty()) {
 			return res.status(400).json({ errors: errors.array() });
@@ -32,12 +38,9 @@ export default class AuthenticationController {
 				return res.status(400).json({ message: `this handle is already taken` });
 			}
 
-			const data: firebase.auth.UserCredential = await Firebase.auth().createUserWithEmailAndPassword(
-				email,
-				password
-			);
+			const data = await Firebase.auth().createUserWithEmailAndPassword(email, password);
 
-			const token: string = await data.user.getIdToken();
+			const token = await data.user.getIdToken();
 			const userCredentials = {
 				email,
 				handle,
@@ -51,18 +54,15 @@ export default class AuthenticationController {
 		}
 	};
 
-	private login = async (req: Request, res: Response) => {
+	private login = async (req, res) => {
 		const errors = validationResult(req);
 		if (!errors.isEmpty()) {
 			return res.status(400).json({ errors: errors.array() });
 		}
 		const { email, password } = req.body;
 		try {
-			const data: firebase.auth.UserCredential = await Firebase.auth().signInWithEmailAndPassword(
-				email,
-				password
-			);
-			const token: string = await data.user.getIdToken();
+			const data = await Firebase.auth().signInWithEmailAndPassword(email, password);
+			const token = await data.user.getIdToken();
 			return res.status(201).json({ token });
 		} catch (err) {
 			if (err.code === 'auth/wrong-password') {
@@ -70,5 +70,44 @@ export default class AuthenticationController {
 			}
 			return res.status(400).json(err);
 		}
+	};
+
+	private uploadImage = async (req, res) => {
+		const busboy = new BusBoy({ headers: req.headers });
+		let imageFileName;
+		let imageToBeUploaded = {
+			filepath: '',
+			mimetype: ''
+		};
+		busboy.on('file', (fieldname, file, filename, encoding, mimetype) => {
+			const imageExtension = filename.split('.')[filename.split('.').length - 1];
+			imageFileName = `${Math.round(Math.random() * 1000000000000).toString()}.${imageExtension}`;
+			const filepath = path.join(os.tmpdir(), imageFileName);
+			imageToBeUploaded = { filepath, mimetype };
+			file.pipe(fs.createWriteStream(filepath));
+		});
+		busboy.on('finish', () => {
+			Admin.storage()
+				.bucket()
+				.upload(imageToBeUploaded.filepath, {
+					resumable: false,
+					metadata: {
+						metadata: {
+							contentType: imageToBeUploaded.mimetype
+						}
+					}
+				})
+				.then(() => {
+					const imageUrl = `https://firebasestorage.googleapis.com/v0/b/${configs.storageBucket}/o/${imageFileName}?alt=media`;
+					return DB.doc(`/users/${req.user.handle}`).update({ imageUrl });
+				})
+				.then(() => {
+					return res.json({ message: 'image uploaded successfully' });
+				})
+				.catch(err => {
+					return res.status(500).json({ error: 'something went wrong' });
+				});
+		});
+		busboy.end(req.rawBody);
 	};
 }

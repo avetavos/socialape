@@ -6,7 +6,7 @@ import * as functions from 'firebase-functions';
 import Auth from './app/controllers/Authentication.controller';
 import Scream from './app/controllers/Scream.controller';
 
-const app: express.Application = express();
+const app = express();
 const controllers = [new Auth(), new Scream()];
 
 app.use(bodyParser.json());
