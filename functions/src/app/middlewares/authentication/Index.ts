@@ -16,6 +16,7 @@ export default async (req, res, next) => {
 			.limit(1)
 			.get();
 		req.user.handle = await data.docs[0].data().handle;
+		req.user.imageUrl = await data.docs[0].data().imageUrl;
 		return next();
 	} catch (err) {
 		return res.status(403).json(err);
