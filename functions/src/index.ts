@@ -5,9 +5,10 @@ import * as functions from 'firebase-functions';
 
 import Auth from './app/controllers/Authentication.controller';
 import Scream from './app/controllers/Scream.controller';
+import User from './app/controllers/User.controller';
 
 const app = express();
-const controllers = [new Auth(), new Scream()];
+const controllers = [new Auth(), new Scream(), new User()];
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: false }));
