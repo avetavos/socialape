@@ -42,7 +42,7 @@ export default class AuthenticationController {
 				createdAt: new Date().toISOString()
 			};
 			await DB.doc(`/users/${handle}`).set(userCredentials);
-			return res.status(201).json({ token });
+			return res.status(201).json({ token: `Bearer ${token}` });
 		} catch (err) {
 			return res.status(400).json(err);
 		}
